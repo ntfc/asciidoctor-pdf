@@ -1804,6 +1804,9 @@ class Converter < ::Prawn::Document
     skip = opts[:skip] || 1
     start = skip + 1
     num_pages = page_count - skip
+    # custom footer on colophon page
+    custom_colophon_footer = opts[:colophon_no_left_footer] || false
+    colophon_page = -1
 
     # FIXME probably need to treat doctypes differently
     sections = doc.find_by(context: :section) {|sect| sect.level < 3 } || []
@@ -1812,10 +1815,14 @@ class Converter < ::Prawn::Document
     chapter_start_pages = {}
     section_start_pages = {}
     sections.each do |sect|
+      sect_page_start = sect.attr 'page_start'
       if sect.chapter?
-        chapter_start_pages[(sect.attr 'page_start').to_i - skip] ||= (sect.numbered_title formal: true)
+        chapter_start_pages[sect_page_start.to_i - skip] ||= (sect.numbered_title formal: true)
       else
-        section_start_pages[(sect.attr 'page_start').to_i - skip] ||= (sect.numbered_title formal: true)
+        section_start_pages[sect_page_start.to_i - skip] ||= (sect.numbered_title formal: true)
+      end
+      if custom_colophon_footer && sect.sectname == "colophon"
+        colophon_page = sect_page_start
       end
     end
 
@@ -1991,6 +1998,14 @@ class Converter < ::Prawn::Document
                   content = pagenums_enabled ? visual_pgnum.to_s : nil
                 else
                   # FIXME drop lines with unresolved attributes
+                  #puts visual_pgnum
+                  #puts num_pages
+                  #puts chapter_start_pages
+                  if custom_colophon_footer && colophon_page != -1 && (visual_pgnum + skip) == colophon_page
+                    if position.to_s == "footer" && align.to_s == "left"
+                      content = ''
+                    end
+                  end
                   content = doc.apply_subs content
                 end
                 formatted_text_box parse_text(content, color: trim_font_color, inline_format: [normalize: true]),
